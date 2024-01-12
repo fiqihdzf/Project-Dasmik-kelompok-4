@@ -1,0 +1,137 @@
+#include "RTClib.h"
+RTC_DS3231 rtc;
+char daysOfTheWeek[7][12] = {"Ahad", "Senin", "Selasa", "Rabu", "Kamis", "Jum'at", "Sabtu"};
+int tanggal, bulan, tahun;
+int Hours, Menit, Detik;
+String hari;
+
+#include "CTBot.h"
+#include <Wire.h>
+#include <Servo.h>
+Servo servoku;
+#include <LiquidCrystal_I2C.h>                 //Library LCD I2C
+LiquidCrystal_I2C lcd(0x27, 16, 2 );            //Alamat I2C LCD 16x2
+CTBot myBot;
+
+const int buzzerPin = D0;
+String ssid = "UNTIRTAKU";
+String pass = "untirtajawara";
+String token = "6948660438:AAHxUMEwIQZHJeEO_4_NJnMldeA4lWMLnuE";
+const int id = 1157286318;
+String pesan = "";
+int receivedValue = 8;
+int receivedValue2 = 0;
+int receivedValue3 = 0;
+bool statejam = false;
+int jamMakan, menitMakan, detikMakan, hariMakan;
+
+void setup() {
+  Serial.begin(9600);
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    Serial.flush();
+    while (1) delay(10);
+  }
+  // rtc.adjust(DateTime(2023, 12, 2, 12, 59, 0)); 
+  lcd.init();
+  lcd.backlight();
+  servoku.attach(D3);
+  servoku.write(0);
+  pinMode(buzzerPin, OUTPUT);
+  Wire.begin();
+  myBot.wifiConnect(ssid, pass);
+  myBot.setTelegramToken(token);
+  delay(1000);
+}
+void loop() {
+  DateTime now = rtc.now();
+  Hours   = now.hour();
+  Menit   = now.minute();
+  Detik   = now.second();
+  tanggal = now.day();
+  bulan   = now.month();
+  tahun   = now.year();
+  hari    = daysOfTheWeek[now.dayOfTheWeek()];
+  delay(1000);
+
+  lcd.setCursor(0, 0);                                                     //Posisi 0,0
+  lcd.print(String() + hari + "," + tanggal + "-" + bulan + "-" + tahun);  //Menampilkan pada LCD
+  lcd.print(" ");                                                          //Spasi
+  lcd.setCursor(4, 1);                                                     //Posisi 0,1
+  lcd.print(String() + Hours + ":" + Menit + ":" + Detik);                   //Menampilkan
+  lcd.print(" ");
+  TBMessage msg;
+   if (myBot.getNewMessage(msg)) {
+     if (msg.text.equalsIgnoreCase("/menu")) {  //Perintah dari telegram ke perangkat
+        myBot.sendMessage(msg.sender.id, "Silakan Kirim : \nJam = Setting Waktu Pemberian Pakan Otomatis \nMakan = pemberian pakan secara realtime \nMonitoring = Melihat jam makan terakhir");  //Balasan dari perangkat ke Bot Telegram
+      } else if (msg.text.equalsIgnoreCase("/jam")) {
+        statejam = true;
+        myBot.sendMessage(msg.sender.id, "Input Jam Anda : ");
+        while (statejam == true) {
+          if (myBot.getNewMessage(msg)) {
+            receivedValue = atoi(msg.text.c_str());
+            myBot.sendMessage(msg.sender.id, "Terima kasih! Jam yang Anda Input: " + String(receivedValue));
+            delay(500);
+            statejam = false;
+            delay(500);
+          }
+        }
+      } else if (msg.text.equalsIgnoreCase("/makan")) {
+        myBot.sendMessage(msg.sender.id, "Berhasil!! \n Ikan Telah Diberi Makan");  //Balasan dari perangkat ke Bot Telegram
+        digitalWrite(buzzerPin, HIGH);
+        delay(1000);  
+        digitalWrite(buzzerPin, LOW);
+        servoku.write(180);
+        delay(1000);
+        servoku.write(0);
+        delay(1000);
+        servoku.write(180);
+        delay(1000);
+        servoku.write(0);
+        delay(1000);
+        servoku.write(180);
+        delay(1000);
+        servoku.write(0);
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print(String() + "Waktunya Makan!!");
+        delay(2000);
+        lcd.clear();
+        jamMakan = Hours;
+        menitMakan = Menit;
+        detikMakan = Detik;
+      } else if (msg.text.equalsIgnoreCase("/monitoring")) {
+        myBot.sendMessage(id, "Hari ini " + String() + "\nJam " + jamMakan + ":" + menitMakan + ":" + detikMakan);
+        lcd.clear();
+        lcd.setCursor(3, 0);
+        lcd.print(String() + "LAST FEEDER");
+        lcd.setCursor(4, 1);                                    //Posisi 0,1
+        lcd.print(String() + jamMakan + ":" + menitMakan + ":" + detikMakan); 
+        delay(2000);
+        lcd.clear(); //Menampilkan
+      }      
+    }
+   if (Hours == receivedValue && Menit == receivedValue2 && Detik == receivedValue3) {
+     digitalWrite(buzzerPin, HIGH);
+     delay(1000);  
+     digitalWrite(buzzerPin, LOW);
+     servoku.write(180);
+     delay(1000);
+     servoku.write(0);
+     delay(1000);
+     servoku.write(180);
+     delay(1000);
+     servoku.write(0);
+     servoku.write(180);
+     delay(1000);
+     servoku.write(0);
+     myBot.sendMessage(id, String() + "Waktunya Makan!!");
+     lcd.setCursor(0, 0);
+     lcd.print(String() + "Waktunya Makan!!");
+     lcd.clear();
+     jamMakan = Hours;
+     menitMakan = Menit;
+     detikMakan = Detik;
+    }
+  delay(100);
+}
